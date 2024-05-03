@@ -15,9 +15,11 @@ from . import (  # noqa: E402
     dummy_agent,
     monologue_agent,
     planner_agent,
+    micromanager_agent,
 )
 
 __all__ = [
+    'micromanager_agent',
     'monologue_agent',
     'codeact_agent',
     'planner_agent',

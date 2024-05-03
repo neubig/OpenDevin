@@ -11,10 +11,10 @@ from opendevin.events.action import (
 )
 from opendevin.llm.llm import LLM
 
-if config.get(ConfigType.AGENT_MEMORY_ENABLED):
-    from agenthub.monologue_agent.utils.memory import LongTermMemory
+# if config.get(ConfigType.AGENT_MEMORY_ENABLED):
+#     from agenthub.monologue_agent.utils.memory import LongTermMemory
 
-    from typing import List
+#     from typing import List
 
 from opendevin.controller.state.state import State
 from opendevin.events.action import Action
@@ -25,7 +25,7 @@ class MicroManagerAgent(Agent):
     llm: LLM
     goal: str
     working_memory: WorkingMemory
-    memory: 'LongTermMemory | None'
+    memory: None#'LongTermMemory | None'
     
     def __init__(self, llm: LLM):
         """

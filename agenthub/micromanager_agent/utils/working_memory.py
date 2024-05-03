@@ -1,4 +1,4 @@
-import agenthub.monologue_agent.utils.json as json
+import agenthub.micromanager_agent.utils.json as json
 import agenthub.micromanager_agent.utils.prompts as prompts
 from opendevin.core.exceptions import AgentEventTypeError
 from opendevin.core.logger import opendevin_logger as logger
