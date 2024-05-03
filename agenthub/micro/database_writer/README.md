@@ -1,1 +1,1 @@
-writes to a sql lite database
+writes data to a sql lite database
