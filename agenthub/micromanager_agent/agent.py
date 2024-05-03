@@ -11,19 +11,15 @@ from opendevin.events.action import (
 )
 from opendevin.llm.llm import LLM
 
-# if config.get(ConfigType.AGENT_MEMORY_ENABLED):
-#     from agenthub.monologue_agent.utils.memory import LongTermMemory
-
-#     from typing import List
-
 from opendevin.controller.state.state import State
 from opendevin.events.action import Action
 from opendevin.llm.llm import LLM
 from opendevin.controller.agent import Agent
+from agenthub.micro.registry import all_microagents
 
 class MicroManagerAgent(Agent):
     llm: LLM
-    goal: str
+    goal: str = 'Open Minded'
     working_memory: WorkingMemory
     memory: None#'LongTermMemory | None'
     
@@ -68,6 +64,18 @@ class MicroManagerAgent(Agent):
         action_resp = resp['choices'][0]['message']['content']
         state.num_of_chars += len(prompt) + len(action_resp)
         action = prompts.parse_action_response(action_resp)
+
+        # debugging
+        import datetime
+        import os
+        import json
+        t = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        os.makedirs('action_calls', exist_ok=True)
+        with open(f'action_calls/{t}.json', 'w') as f:
+            json.dump({
+                'prompt': prompt,
+                'response': action_resp,
+            }, f, indent=2)
 
         # Process and then ignore updated_info
         for prev_action, obs in state.updated_info:

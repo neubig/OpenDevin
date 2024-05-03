@@ -9,11 +9,14 @@ from opendevin.events.action import (
     Action,
     action_from_dict,
 )
+from opendevin.events.action import Action, AgentDelegateAction
 from opendevin.events.observation import (
     CmdOutputObservation,
 )
+from agenthub.micro.registry import all_microagents
 
 from . import json
+
 
 ACTION_PROMPT = """
 You're a thoughtful robot. Your main task is this:
@@ -21,9 +24,9 @@ You're a thoughtful robot. Your main task is this:
 
 Don't expand the scope of your task--just complete it as written.
 
-This is a summary of what you've done thusfar to achieve this goal, and how you've interpreted the outcomes , in JSON format:
+This is a summary of what you've done thusfar to achieve this goal, and how you've interpreted the outcomes, in JSON format:
 
-%(working memory snippet)s
+%(working_memory_snippet)s
 
 What is your next single thought or action? Your response must be in JSON format.
 It must be a single object, and it must contain two fields:
@@ -52,12 +55,18 @@ Here are the possible actions:
 * `think` - make a plan, set a goal, or record your thoughts. Arguments:
   * `thought` - the thought to record
 * `finish` - if you're absolutely certain that you've completed your task and have tested your work, use the finish action to stop working.
+* `delegate` - delegate a task to another agent. Arguments:
+    * `agent` - the name of the agent to delegate to
+    * `task` - the task to delegate
+    * `summary` - a summary of the settings and context for the task
+
+%(micro_agents)s
 
 %(background_commands)s
 
-You MUST take time to think in between read, write, run, browse, push, and recall actions.
-You should never act twice in a row without thinking. But if your last several
-actions are all "think" actions, you should consider taking a different action.
+You MUST alternate between read/write/run/browse/push/recall/delegate and thinking actions.
+You should strongly favor delegation to direct action (which includes read/write/run/browse/push/recall actions). Delegate work unless none of the available agents are compatible with the task.
+You should never act twice in a row without thinking. You should never think twice in a row without acting.
 
 Notes:
 * you are logged in as %(user)s, but sudo will always work without a password.
@@ -73,7 +82,7 @@ What is your next single thought or action? Again, you must reply with JSON, and
 
 ORIENT_TO_WORKING_MEMORY_PROMPT = """"
 # Premise
-You are an AI assistant that acts and perceives according to John Boyd's OODA loop method.
+You are an AI assistant that acts and perceives according to John Boyd's Observe-Orient-Decide-Act loop method.
 You have just taken the following action:
 %(action)s
 Which resulted in the following observation:
@@ -82,13 +91,16 @@ Which resulted in the following observation:
 Before that action, you had the Actions, Observations, and Orientations:
 %(recent_event_log)s
 
-You were working towards the following Subplan:
+You were working towards the following subplan:
 %(working_subplan)s
-And the following Subgoal:
+And the following subgoal:
 %(working_subgoal)s
 
 # Objective
-Based on the action and observation provided, what should your next orientation be?
+Based on the action and observation provided, produce an orientation with the following attributes
+- The orientation addresses any assumptions apparent in previous thinking.
+- The orientation suggests how to proceed based on the action and observation.
+- The orientation suggests whether the result was positive or negative.
 Additionally, if the action and observation suggest either a new subplan or subgoal, please provide those as well.
     - If no new subplan or subgoal is suggested, you can add an empty string for the field.
 ## Response Format
@@ -159,6 +171,30 @@ def parse_orient_response(response: str) -> Tuple[str, str, str]:
 
 
 ### Core Agent Prompts ###
+import os
+
+def find_readme_directories_and_content(base_path="agenthub/micro"):
+    """
+    Traverse the directories under the specified base path, find all directories containing a README.md file,
+    and format their names and contents into a prompt format.
+    
+    Args:
+    base_path (str): The base directory path to start the search from.
+    
+    Returns:
+    str: A formatted string containing the directory names and the contents of their README.md files.
+    """
+    prompt_content = "# Agents You May Delegate To - Use Provided Names With the Delegation Action\n\n"
+    for root, dirs, files in os.walk(base_path):
+        if "README.md" in files:
+            dir_name = os.path.basename(root)
+            if dir_name not in ['coder','database_writer','dataset_finder','repo_explorer']:
+                continue
+            readme_path = os.path.join(root, "README.md")
+            with open(readme_path, 'r') as file:
+                readme_content = file.read()
+            prompt_content += f"# {dir_name}\n{readme_content}\n\n"
+    return prompt_content
 
 def get_request_action_prompt(
     task: str,
@@ -200,6 +236,7 @@ def get_request_action_prompt(
 
     user = 'opendevin' if config.get(ConfigType.RUN_AS_DEVIN) else 'root'
 
+    micros_available = find_readme_directories_and_content()
     return ACTION_PROMPT % {
         'task': task,
         'working_memory_snippet': working_memory_rendered,#json.dumps(thoughts, indent=2),
@@ -209,6 +246,7 @@ def get_request_action_prompt(
         'WORKSPACE_MOUNT_PATH_IN_SANDBOX': config.get(
             ConfigType.WORKSPACE_MOUNT_PATH_IN_SANDBOX
         ),
+        'micro_agents': micros_available
     }
 
 def parse_action_response(response: str) -> Action:
@@ -250,4 +288,16 @@ def parse_action_response(response: str) -> Action:
     if 'content' in action_dict:
         # The LLM gets confused here. Might as well be robust
         action_dict['contents'] = action_dict.pop('content')
-    return action_from_dict(action_dict)
+    if action_dict['action'] == 'delegate':
+        non_agent_name_args = action_dict['args']
+        agent_name = non_agent_name_args.pop('agent')
+        translation = {
+            'coder':'CoderAgent',
+            'dataset_finder':'DatasetFinderAgent',
+            'database_writer':'DatabaseWriterAgent'
+        }
+        return AgentDelegateAction(
+            agent=translation[agent_name], inputs=non_agent_name_args
+        )
+    else:
+        return action_from_dict(action_dict)

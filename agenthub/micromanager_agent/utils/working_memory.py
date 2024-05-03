@@ -18,8 +18,8 @@ class WorkingMemory:
         """
         Initialize the empty list of thoughts
         """
-        self.working_subgoal = "Open Minded"
-        self.working_subplan = "Open Minded"
+        self.working_subgoal = "Not identified yet."
+        self.working_subplan = "Not identified yet."
         self.event_log = []
 
     def orient(self, action, observation, llm:LLM):
@@ -52,11 +52,15 @@ class WorkingMemory:
         Returns:
         - str: The working memory as a string
         """
-        working_memory_rendered = f"""
-# Your Last Action, Observation, and Orientation
-## Action\n{self.event_log[-1]['action']}
+        history = "No history yet."
+        if len(self.event_log) > 0:
+            history = f"""## Action\n{self.event_log[-1]['action']}
 ## Observation\n{self.event_log[-1]['observation']}
 ## Orientation\n{self.event_log[-1]['orientation']}
+"""
+        working_memory_rendered = f"""
+# Your Last Action, Observation, and Orientation
+{history}
 
 # Your Working Subplan and Subgoal
 ## Subplan\n{self.working_subplan}
@@ -64,11 +68,26 @@ class WorkingMemory:
 
 # Your Event Log (5 Events to the Last Action)
 """
-        for i in range(-5,-1):
-           working_memory_rendered += f"""
+        event_log_snippet = "\nNo history yet."
+        if len(self.event_log) > 1:
+            event_log_snippet = "\n"
+            for i in range(-5,-1):
+                if i <= -len(self.event_log):
+                    continue
+                working_memory_rendered += f"""
 ## Event {i+6}
 ### Action\n{self.event_log[i]['action']}
 ### Observation\n{self.event_log[i]['observation']}
 ### Orientation\n{self.event_log[i]['orientation']}
 """
+        working_memory_rendered += event_log_snippet
+
+        # Debugging
+        import datetime
+        import os
+        dt = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+        if not os.path.exists('working_memory_rendered'):
+            os.makedirs('working_memory_rendered')
+        with open(f'working_memory_rendered/{dt}.md', 'w') as f:
+            f.write(working_memory_rendered)
         return working_memory_rendered
