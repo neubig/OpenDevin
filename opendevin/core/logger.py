@@ -4,7 +4,7 @@ import sys
 import traceback
 from datetime import datetime
 from typing import Literal, Mapping
-import json
+
 from termcolor import colored
 
 from opendevin.core import config
@@ -172,22 +172,6 @@ class LlmFileHandler(logging.FileHandler):
         self.stream.close
         opendevin_logger.debug('Logging to %s', self.baseFilename)
         self.message_counter += 1
-        log_entry: dict = {
-            'time': datetime.now().strftime('%H:%M:%S'),
-            'name': record.name,
-            'level': record.levelname,
-            'message': record.getMessage(),
-            "all":record.__dict__
-        }
-        path = os.path.join(self.log_directory, 'actions.json')
-        if os.path.exists(path):
-            with open(path, 'r') as file:
-                data = json.load(file)
-        else:
-            data = []
-        data.append(log_entry)
-        with open(path, 'w') as file:
-            json.dump(data, file, indent=4)
 
 
 def get_llm_prompt_file_handler():
