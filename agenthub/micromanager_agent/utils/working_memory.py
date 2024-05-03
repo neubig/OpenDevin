@@ -5,6 +5,8 @@ from opendevin.core.logger import opendevin_logger as logger
 from opendevin.llm.llm import LLM
 from typing import Dict, Union, List, Literal
 
+OFFSET = 15
+
 class WorkingMemory:
     """
     We use the working memory as a way to keep track of the agent's state in a structured way.
@@ -33,7 +35,7 @@ class WorkingMemory:
         #self.event_log.append({'action': action, 'observation': observation})
 
         prompt = prompts.get_orient_to_working_memory_prompt(
-            action, observation, self.event_log[:-5][::-1], self.working_subplan, self.working_subgoal
+            action, observation, self.event_log[:-OFFSET][::-1], self.working_subplan, self.working_subgoal
         )
         messages = [{'content': prompt, 'role': 'user'}]
         resp = llm.completion(messages=messages)
@@ -71,11 +73,12 @@ class WorkingMemory:
         event_log_snippet = "\nNo history yet."
         if len(self.event_log) > 1:
             event_log_snippet = "\n"
-            for i in range(-5,-1):
+
+            for i in range(-OFFSET,-1):
                 if i <= -len(self.event_log):
                     continue
                 working_memory_rendered += f"""
-## Event {i+6}
+## Event {i+OFFSET+1}
 ### Action\n{self.event_log[i]['action']}
 ### Observation\n{self.event_log[i]['observation']}
 ### Orientation\n{self.event_log[i]['orientation']}

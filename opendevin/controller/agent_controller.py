@@ -244,7 +244,7 @@ class AgentController:
         self.delegate = AgentController(
             sid=self.id + '-delegate',
             agent=agent,
-            max_iterations=self.max_iterations,
+            max_iterations=20,#self.max_iterations
             max_chars=self.max_chars,
             callbacks=self.callbacks,
         )
