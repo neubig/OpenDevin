@@ -5,6 +5,8 @@ from opendevin.core.logger import opendevin_logger as logger
 from opendevin.llm.llm import LLM
 from typing import Dict, Union, List, Literal
 
+OFFSET = 15
+
 class WorkingMemory:
     """
     We use the working memory as a way to keep track of the agent's state in a structured way.
@@ -18,8 +20,8 @@ class WorkingMemory:
         """
         Initialize the empty list of thoughts
         """
-        self.working_subgoal = "Open Minded"
-        self.working_subplan = "Open Minded"
+        self.working_subgoal = "Not identified yet."
+        self.working_subplan = "Not identified yet."
         self.event_log = []
 
     def orient(self, action, observation, llm:LLM):
@@ -33,7 +35,7 @@ class WorkingMemory:
         #self.event_log.append({'action': action, 'observation': observation})
 
         prompt = prompts.get_orient_to_working_memory_prompt(
-            action, observation, self.event_log[:-5][::-1], self.working_subplan, self.working_subgoal
+            action, observation, self.event_log[:-OFFSET][::-1], self.working_subplan, self.working_subgoal
         )
         messages = [{'content': prompt, 'role': 'user'}]
         resp = llm.completion(messages=messages)
@@ -52,11 +54,15 @@ class WorkingMemory:
         Returns:
         - str: The working memory as a string
         """
-        working_memory_rendered = f"""
-# Your Last Action, Observation, and Orientation
-## Action\n{self.event_log[-1]['action']}
+        history = "No history yet."
+        if len(self.event_log) > 0:
+            history = f"""## Action\n{self.event_log[-1]['action']}
 ## Observation\n{self.event_log[-1]['observation']}
 ## Orientation\n{self.event_log[-1]['orientation']}
+"""
+        working_memory_rendered = f"""
+# Your Last Action, Observation, and Orientation
+{history}
 
 # Your Working Subplan and Subgoal
 ## Subplan\n{self.working_subplan}
@@ -64,11 +70,27 @@ class WorkingMemory:
 
 # Your Event Log (5 Events to the Last Action)
 """
-        for i in range(-5,-1):
-           working_memory_rendered += f"""
-## Event {i+6}
+        event_log_snippet = "\nNo history yet."
+        if len(self.event_log) > 1:
+            event_log_snippet = "\n"
+
+            for i in range(-OFFSET,-1):
+                if i <= -len(self.event_log):
+                    continue
+                working_memory_rendered += f"""
+## Event {i+OFFSET+1}
 ### Action\n{self.event_log[i]['action']}
 ### Observation\n{self.event_log[i]['observation']}
 ### Orientation\n{self.event_log[i]['orientation']}
 """
+        working_memory_rendered += event_log_snippet
+
+        # Debugging
+        import datetime
+        import os
+        dt = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+        if not os.path.exists('working_memory_rendered'):
+            os.makedirs('working_memory_rendered')
+        with open(f'working_memory_rendered/{dt}.md', 'w') as f:
+            f.write(working_memory_rendered)
         return working_memory_rendered
